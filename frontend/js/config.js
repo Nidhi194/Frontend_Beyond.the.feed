@@ -1,0 +1,1 @@
+// NewsAPI is configured with the NEWS_API_KEY Vercel environment variable.
