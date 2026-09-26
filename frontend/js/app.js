@@ -31,45 +31,47 @@
     })
   }
 
-  async function loadArticles(query) {
+  async function loadCategoryArticles(category) {
     try {
-      const articles = await api.fetchArticles(query)
-      return { articles: articles.length ? articles : data.fallbackArticles, usingFallback: !articles.length }
+      const articles = await api.fetchArticles(category.query, category)
+      return { articles: articles.length ? articles : fallbackForCategory(category.slug), usingFallback: !articles.length }
     } catch (error) {
-      return { articles: data.fallbackArticles, usingFallback: true, error }
+      return { articles: fallbackForCategory(category.slug), usingFallback: true, error }
     }
+  }
+
+  async function loadAllArticles() {
+    const results = await Promise.all(data.categories.map(loadCategoryArticles))
+    return { articles: uniqueArticles(results.flatMap((result) => result.articles)), usingFallback: results.some((result) => result.usingFallback) }
   }
 
   async function renderHomePage() {
     const app = document.querySelector('#app')
     showLoading(app)
-    const result = await loadArticles()
-    const articles = result.usingFallback ? data.fallbackArticles : [...data.fallbackArticles, ...result.articles]
-    renderHome(app, articles, result.usingFallback)
-    setupSearch(articles)
+    const result = await loadAllArticles()
+    renderHome(app, result.articles, result.usingFallback)
+    setupSearch(result.articles)
   }
 
   async function renderCategoryPage() {
-    const slug = new URLSearchParams(window.location.search).get('slug') || 'mind'
+    const slug = new URLSearchParams(window.location.search).get('slug') || 'creativity'
     const category = data.categories.find((item) => item.slug === slug) || data.categories[0]
     const app = document.querySelector('#app')
     showLoading(app)
-    const result = await loadArticles(category.query)
-    const localArticles = data.fallbackArticles.filter((article) => article.categorySlug === slug)
-    const matchingArticles = result.articles.filter((article) => article.categorySlug === slug)
-    renderCategory(app, category, matchingArticles.length ? matchingArticles : localArticles, result.usingFallback)
-    setupSearch(matchingArticles.length ? result.articles : localArticles)
+    const result = await loadCategoryArticles(category)
+    renderCategory(app, category, result.articles, result.usingFallback)
+    setupSearch(result.articles)
   }
 
   async function renderArticlePage() {
     const slug = new URLSearchParams(window.location.search).get('slug')
     const app = document.querySelector('#app')
     showLoading(app)
-    const result = await loadArticles()
-    const availableArticles = result.usingFallback ? data.fallbackArticles : [...data.fallbackArticles, ...result.articles]
+    const result = await loadAllArticles()
+    const availableArticles = result.articles
     const article = availableArticles.find((item) => item.slug === slug) || availableArticles[0]
     renderArticle(app, article, result.usingFallback)
-    setupSearch(result.articles)
+    setupSearch(availableArticles)
   }
 
   function renderAboutPage() {
@@ -78,9 +80,8 @@
 
   function renderHome(app, articles, usingFallback) {
     const featured = articles.find((article) => article.featured) || articles[0]
-    const editorialArticles = articles.filter((article) => article.source === 'Beyond the Feed')
-    const liveArticles = articles.filter((article) => article.source !== 'Beyond the Feed')
-    app.innerHTML = `<section class="hero-section"><div class="hero-copy"><p class="eyebrow">A magazine about Instagram and modern life</p><h1>What the feed<br><em>gives</em> us.</h1><p class="hero-intro">Stories about Instagram’s pressure and possibility: the attention it captures, the creativity it unlocks, and the communities it helps us find.</p><a class="arrow-link" href="category.html?slug=creativity">Explore the issue <span>→</span></a></div><div class="hero-art"><div class="art-circle"></div><div class="art-caption">Issue 04<br><strong>Attention</strong><br>and the self</div><img src="${fallbackImage}" alt="Green leaves in warm light"></div></section><section class="ticker"><span>Now reading</span><div>Creativity <b>✳</b> Community <b>✳</b> Commerce <b>✳</b> Habits <b>✳</b> Trends <b>✳</b> Connection</div></section><section class="container editorial-section"><div class="section-heading"><div><p class="eyebrow">The latest thinking</p><h2 id="results-heading">Stories worth your attention</h2></div><a class="text-link" href="category.html?slug=creativity">View all stories</a></div>${statusMessage(usingFallback)}${editorialArticles.find((article) => article.featured) ? featuredMarkup(editorialArticles.find((article) => article.featured)) : ''}<div class="article-grid">${editorialArticles.filter((article) => !article.featured).slice(0, 3).map(articleCardMarkup).join('')}</div></section>${categoryStripMarkup()}${liveArticles.length ? `<section class="container editorial-section"><div class="section-heading"><div><p class="eyebrow">Live from the wider web</p><h2>Trending Around the Feed</h2></div></div><div class="article-grid">${liveArticles.slice(0, 3).map(articleCardMarkup).join('')}</div></section>` : ''}`
+    const featuredArticle = articles.find((article) => article.featured) || articles[0]
+    app.innerHTML = `<section class="hero-section"><div class="hero-copy"><p class="eyebrow">A magazine about Instagram and modern life</p><h1>What the feed<br><em>gives</em> us.</h1><p class="hero-intro">Stories about Instagram’s pressure and possibility: the attention it captures, the creativity it unlocks, and the communities it helps us find.</p><a class="arrow-link" href="category.html?slug=creativity">Explore the issue <span>→</span></a></div><div class="hero-art"><div class="art-circle"></div><div class="art-caption">Issue 04<br><strong>Attention</strong><br>and the self</div><img src="${fallbackImage}" alt="Green leaves in warm light"></div></section><section class="ticker"><span>Now reading</span><div>Creativity <b>✳</b> Community <b>✳</b> Commerce <b>✳</b> Habits <b>✳</b> Trends <b>✳</b> Connection</div></section><section class="container editorial-section"><div class="section-heading"><div><p class="eyebrow">The latest thinking</p><h2 id="results-heading">Stories worth your attention</h2></div><a class="text-link" href="category.html?slug=creativity">View all stories</a></div>${statusMessage(usingFallback)}${featuredArticle ? featuredMarkup(featuredArticle) : ''}<div class="article-grid">${articles.filter((article) => article.id !== featuredArticle?.id).slice(0, 3).map(articleCardMarkup).join('')}</div></section>${categoryStripMarkup()}`
   }
 
   function renderCategory(app, category, articles, usingFallback) {
@@ -98,6 +99,8 @@
   function featuredMarkup(article) { return `<a href="article.html?slug=${encodeURIComponent(article.slug)}" class="featured-story"><img src="${safeUrl(article.image || fallbackImage)}" alt="" onerror="this.onerror=null;this.src='${fallbackImage}'"><div class="featured-copy"><p class="category-label">${escapeHtml(article.category)}</p><h3>${escapeHtml(article.title)}</h3><p>${escapeHtml(article.description)}</p><span class="byline">${escapeHtml(article.author)} &nbsp;·&nbsp; ${escapeHtml(article.readTime)}</span></div></a>` }
   function articleCardMarkup(article) { return `<a href="article.html?slug=${encodeURIComponent(article.slug)}" class="article-card"><img src="${safeUrl(article.image || fallbackImage)}" alt="" onerror="this.onerror=null;this.src='${fallbackImage}'"><p class="category-label">${escapeHtml(article.category)}</p><h3>${escapeHtml(article.title)}</h3><p>${escapeHtml(article.description)}</p><span class="byline">${escapeHtml(article.author)} &nbsp;·&nbsp; ${escapeHtml(article.readTime)}</span></a>` }
   function categoryStripMarkup() { return `<section class="category-strip"><div class="container"><p class="eyebrow">Find your way around</p><div class="category-links">${data.categories.map((category) => `<a href="category.html?slug=${category.slug}" class="${category.color}"><span>${escapeHtml(category.short)}</span><b>→</b></a>`).join('')}</div></div></section>` }
+  function fallbackForCategory(slug) { return data.fallbackArticles.filter((article) => article.categorySlug === slug) }
+  function uniqueArticles(articles) { return [...new Map(articles.map((article) => [article.slug, article])).values()] }
   function paragraphsMarkup(text) { return String(text || '').split(/\n+/).filter(Boolean).map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join('') }
   function setupSearch(articles) { const search = document.querySelector('#site-search'); if (!search) return; search.addEventListener('input', () => { const query = search.value.trim().toLowerCase(); const matches = articles.filter((article) => `${article.title} ${article.description} ${article.category}`.toLowerCase().includes(query)); const grid = document.querySelector('.article-grid'); if (grid) grid.innerHTML = matches.map(articleCardMarkup).join(''); const heading = document.querySelector('#results-heading'); if (heading) heading.textContent = query ? `Search results for “${search.value.trim()}”` : 'Stories worth your attention'; }) }
   function showLoading(app) { app.innerHTML = '<div class="container loading-state" role="status">Loading stories...</div>' }
