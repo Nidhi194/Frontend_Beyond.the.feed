@@ -17,7 +17,7 @@
       <a href="index.html" class="wordmark">Beyond <span>the</span> Feed</a>
       <button class="menu-button" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button>
       <nav class="main-nav" aria-label="Main navigation">
-        <a href="category.html?slug=mind">The Mind</a><a href="category.html?slug=creativity">Creativity</a><a href="category.html?slug=business">Business</a><a href="category.html?slug=habits">Digital Habits</a><a href="about.html">About</a>
+        <a href="index.html">Home</a><a href="category.html?slug=creativity">Creativity</a><a href="category.html?slug=communities">Communities</a><a href="category.html?slug=business">Business</a><a href="category.html?slug=habits">Digital Habits</a><a href="category.html?slug=trends">Trends</a><a href="about.html">About</a>
       </nav>
       <label class="search-box"><span>⌕</span><input id="site-search" type="search" placeholder="Search stories" aria-label="Search stories"></label>
     </header>`
@@ -44,8 +44,9 @@
     const app = document.querySelector('#app')
     showLoading(app)
     const result = await loadArticles()
-    renderHome(app, result.articles, result.usingFallback)
-    setupSearch(result.articles)
+    const articles = result.usingFallback ? data.fallbackArticles : [...data.fallbackArticles, ...result.articles]
+    renderHome(app, articles, result.usingFallback)
+    setupSearch(articles)
   }
 
   async function renderCategoryPage() {
@@ -54,9 +55,10 @@
     const app = document.querySelector('#app')
     showLoading(app)
     const result = await loadArticles(category.query)
+    const localArticles = data.fallbackArticles.filter((article) => article.categorySlug === slug)
     const matchingArticles = result.articles.filter((article) => article.categorySlug === slug)
-    renderCategory(app, category, matchingArticles.length ? matchingArticles : result.articles, result.usingFallback)
-    setupSearch(result.articles)
+    renderCategory(app, category, matchingArticles.length ? matchingArticles : localArticles, result.usingFallback)
+    setupSearch(matchingArticles.length ? result.articles : localArticles)
   }
 
   async function renderArticlePage() {
@@ -64,18 +66,21 @@
     const app = document.querySelector('#app')
     showLoading(app)
     const result = await loadArticles()
-    const article = result.articles.find((item) => item.slug === slug) || result.articles[0]
+    const availableArticles = result.usingFallback ? data.fallbackArticles : [...data.fallbackArticles, ...result.articles]
+    const article = availableArticles.find((item) => item.slug === slug) || availableArticles[0]
     renderArticle(app, article, result.usingFallback)
     setupSearch(result.articles)
   }
 
   function renderAboutPage() {
-    document.querySelector('#app').innerHTML = `<section class="container simple-page"><p class="eyebrow">Our point of view</p><h1>Life is bigger<br><em>than the grid.</em></h1><p class="large-copy">Beyond the Feed is an independent digital magazine about Instagram’s influence on modern life. We look past the likes and into the questions underneath: who gets seen, what gets made, and how do we want to be together?</p><a class="arrow-link" href="index.html">Back to stories <span>→</span></a></section>`
+    document.querySelector('#app').innerHTML = `<section class="container simple-page"><p class="eyebrow">Our point of view</p><h1>Life is bigger<br><em>than the grid.</em></h1><p class="large-copy">Beyond the Feed is an independent digital magazine exploring Instagram’s influence on modern life: from creativity and online communities to business, digital habits, trends, and the changing way we connect and express ourselves online.</p><a class="arrow-link" href="index.html">Back to stories <span>→</span></a></section>`
   }
 
   function renderHome(app, articles, usingFallback) {
     const featured = articles.find((article) => article.featured) || articles[0]
-    app.innerHTML = `<section class="hero-section"><div class="hero-copy"><p class="eyebrow">A magazine about Instagram and modern life</p><h1>What the feed<br><em>gives</em> us.</h1><p class="hero-intro">Stories about Instagram’s pressure and possibility: the attention it captures, the creativity it unlocks, and the communities it helps us find.</p><a class="arrow-link" href="category.html?slug=mind">Explore the issue <span>→</span></a></div><div class="hero-art"><div class="art-circle"></div><div class="art-caption">Issue 04<br><strong>Attention</strong><br>and the self</div><img src="${fallbackImage}" alt="Green leaves in warm light"></div></section><section class="ticker"><span>Now reading</span><div>Comparison <b>✳</b> Creativity <b>✳</b> Community <b>✳</b> Commerce <b>✳</b> Attention <b>✳</b> Connection</div></section><section class="container editorial-section"><div class="section-heading"><div><p class="eyebrow">The latest thinking</p><h2 id="results-heading">Stories worth your attention</h2></div><a class="text-link" href="category.html?slug=mind">View all stories</a></div>${statusMessage(usingFallback)}${featured ? featuredMarkup(featured) : ''}<div class="article-grid">${articles.filter((article) => article.id !== featured?.id).slice(0, 3).map(articleCardMarkup).join('')}</div></section>${categoryStripMarkup()}`
+    const editorialArticles = articles.filter((article) => article.source === 'Beyond the Feed')
+    const liveArticles = articles.filter((article) => article.source !== 'Beyond the Feed')
+    app.innerHTML = `<section class="hero-section"><div class="hero-copy"><p class="eyebrow">A magazine about Instagram and modern life</p><h1>What the feed<br><em>gives</em> us.</h1><p class="hero-intro">Stories about Instagram’s pressure and possibility: the attention it captures, the creativity it unlocks, and the communities it helps us find.</p><a class="arrow-link" href="category.html?slug=creativity">Explore the issue <span>→</span></a></div><div class="hero-art"><div class="art-circle"></div><div class="art-caption">Issue 04<br><strong>Attention</strong><br>and the self</div><img src="${fallbackImage}" alt="Green leaves in warm light"></div></section><section class="ticker"><span>Now reading</span><div>Creativity <b>✳</b> Community <b>✳</b> Commerce <b>✳</b> Habits <b>✳</b> Trends <b>✳</b> Connection</div></section><section class="container editorial-section"><div class="section-heading"><div><p class="eyebrow">The latest thinking</p><h2 id="results-heading">Stories worth your attention</h2></div><a class="text-link" href="category.html?slug=creativity">View all stories</a></div>${statusMessage(usingFallback)}${editorialArticles.find((article) => article.featured) ? featuredMarkup(editorialArticles.find((article) => article.featured)) : ''}<div class="article-grid">${editorialArticles.filter((article) => !article.featured).slice(0, 3).map(articleCardMarkup).join('')}</div></section>${categoryStripMarkup()}${liveArticles.length ? `<section class="container editorial-section"><div class="section-heading"><div><p class="eyebrow">Live from the wider web</p><h2>Trending Around the Feed</h2></div></div><div class="article-grid">${liveArticles.slice(0, 3).map(articleCardMarkup).join('')}</div></section>` : ''}`
   }
 
   function renderCategory(app, category, articles, usingFallback) {
