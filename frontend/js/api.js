@@ -15,7 +15,7 @@ window.BeyondFeedApi = {
       .sort((left, right) => right.score - left.score)
       .slice(0, 12)
       .map(({ article }) => ({
-      id: `news-${articleKey(article)}`,
+      id: `news-${newsArticleKey(article)}`,
       slug: createSlug(article.title),
       title: article.title,
       description: article.description || 'Read the full story at the original source.',
@@ -70,8 +70,14 @@ function relevanceScore(article, categoryTerms, coreTerms) {
   return score
 }
 
-export function articleKey(article) {
+function newsArticleKey(article) {
   return article.url || `${String(article.title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${String(article.source?.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+}
+
+export function articleKey(article) {
+  return article.id?.startsWith('news-') && article.sourceUrl
+    ? article.sourceUrl
+    : `${article.title.toLowerCase()}|${article.source.toLowerCase()}`;
 }
 
 export async function loadCategoryArticles(category) {  //function has waiting time for api call to complete and return the articles for a specific category
