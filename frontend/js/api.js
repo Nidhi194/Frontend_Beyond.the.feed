@@ -1,3 +1,5 @@
+const data = window.BeyondFeedData; //container for api functions
+
 window.BeyondFeedApi = {
   async fetchArticles(query, category) {
     if (!query || !category) throw new Error('A NewsAPI category query is required')
@@ -29,6 +31,8 @@ window.BeyondFeedApi = {
     }))
   },
 }
+
+const api = window.BeyondFeedApi;
 
 function createSlug(title) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -66,6 +70,50 @@ function relevanceScore(article, categoryTerms, coreTerms) {
   return score
 }
 
-function articleKey(article) {
+export function articleKey(article) {
   return article.url || `${String(article.title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${String(article.source?.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+}
+
+export async function loadCategoryArticles(category) {  //function has waiting time for api call to complete and return the articles for a specific category
+  try {
+    const articles = await api.fetchArticles(category.query, category); //API CALL
+
+    return {
+      articles: mergeWithFallback(articles, category.slug),
+      usingFallback: !articles.length
+    };
+  } catch (error) {
+    return {
+      articles: fallbackForCategory(category.slug),
+      usingFallback: true,
+      error
+    };
+  }
+}
+
+export async function loadAllArticles() {
+  const results = await Promise.all(data.categories.map(loadCategoryArticles));
+
+  return {
+    articles: uniqueArticles(results.flatMap((result) => result.articles)),
+    usingFallback: results.some((result) => result.usingFallback)
+  };
+}
+
+export function fallbackForCategory(slug) {
+  return data.fallbackArticles.filter((article) => article.categorySlug === slug);
+}
+
+export function mergeWithFallback(articles, categorySlug) {
+  const fallback = fallbackForCategory(categorySlug);
+  const seen = new Set(articles.map(articleKey));
+
+  return [
+    ...articles,
+    ...fallback.filter((article) => !seen.has(articleKey(article)))
+  ];
+}
+
+export function uniqueArticles(articles) {
+  return [...new Map(articles.map((article) => [articleKey(article), article])).values()];
 }
